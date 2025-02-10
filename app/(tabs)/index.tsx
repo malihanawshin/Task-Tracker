@@ -1,74 +1,164 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, Button, FlatList, TouchableOpacity, StyleSheet, Modal} from 'react-native';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 
-export default function HomeScreen() {
+export default function App() {
+  const [tasks, setTasks] = useState<{
+    id: string; duration: string; text: string; completed: boolean 
+}[]>([]);
+  const [task, setTask] = useState('');
+  const [taskDuration, setTaskDuration] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
+
+  const addTask = () => {
+    if (task.trim() === '') return;
+    setTasks([...tasks, { id: Date.now().toString(), duration:taskDuration ,text: task, completed: false }]);
+    setTask('');
+    setTaskDuration('');
+  };
+
+  const updateTaskDuration = (id: string, duration: string) => {
+    setTasks(tasks.map(task => task.id === id ? { ...task, duration } : task));
+  };
+
+  const toggleComplete = (id: string) => {
+    setTasks(tasks.map(task => task.id === id ? { ...task, completed: !task.completed } : task));
+  };
+
+  const deleteTask = (id: string) => {
+    setTasks(tasks.filter(task => task.id !== id));
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <View style={styles.container}>
+      <Text style={styles.title}>Task Tracker</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter a task"
+        value={task}
+        onChangeText={setTask}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter a duration"
+        value={taskDuration}
+        onChangeText={setTaskDuration}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+
+      <Button title="Add Task" onPress={addTask}/>
+      
+      <FlatList
+        data={tasks}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.taskContainer}>
+            <TouchableOpacity onPress={() => toggleComplete(item.id)}>
+              
+              <Text style={styles.taskText}>{item.text} - {item.duration || 'No time set'}</Text>
+
+            </TouchableOpacity>
+            <Button title="Edit Time" onPress={() =>  { setEditingTaskId(item.id); setShowModal(true); }} />
+            <Button title="Done" onPress={() => deleteTask(item.id)} color="red" />
+          </View>
+        )}
+      />
+
+  <Modal visible={showModal} transparent animationType="slide">
+    <View style={styles.modalContainer}>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalTitle}>Select Duration</Text>
+        
+        {['30 mins', '1 hour', '2 hours'].map((time) => (
+          <TouchableOpacity key={time} onPress={() => {{ 
+            if (editingTaskId) {
+              updateTaskDuration(editingTaskId, time);
+            }
+            setShowModal(false); 
+          }}}>
+            <Text style={styles.modalOption}>{time}</Text>
+          </TouchableOpacity>
+        ))}
+
+        <Button title="Close" onPress={() => setShowModal(false)} />
+      </View>
+    </View>
+  </Modal>
+
+
+    </View>
+
+    
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    marginTop: 30,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: '#7a7a79',
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 5,
+    fontSize: 18,
+  },
+  taskContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  taskText: {
+    fontSize: 18,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  completed: {
+    textDecorationLine: 'line-through',
+    color: 'gray',
+  },
+
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: 300,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalOption: {
+    fontSize: 18,
+    padding: 10,
+    textAlign: 'center',
+  },
+  modalClose: {
+    marginTop: 20, 
+
   },
 });
+
+
