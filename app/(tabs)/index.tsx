@@ -1,25 +1,64 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, FlatList, TouchableOpacity, StyleSheet, Modal} from 'react-native';
-
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Button, FlatList, TouchableOpacity, StyleSheet, Modal, Alert} from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 export default function App() {
   const [tasks, setTasks] = useState<{
-    id: string; duration: string; text: string; completed: boolean 
+    id: string; duration: number; text: string; completed: boolean 
 }[]>([]);
   const [task, setTask] = useState('');
-  const [taskDuration, setTaskDuration] = useState('');
+  const [taskDuration, setTaskDuration] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+  
+  useEffect(() => {
+    const requestPermissions = async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please enable notifications in settings!');
+      }
+    };
+  
+    requestPermissions();
+  }, []);
 
-  const addTask = () => {
-    if (task.trim() === '') return;
-    setTasks([...tasks, { id: Date.now().toString(), duration:taskDuration ,text: task, completed: false }]);
+  const addTask = async () => {
+    if (task.trim() === '' || taskDuration == null) return;
+    
+    const id = Date.now().toString();
+    const durationInSeconds = taskDuration * 60; // minutes to milliseconds
+
+  //schedule notification
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '⏰ Alarm!',
+      body: `Task "${task}" is due now!`,
+      sound: true,
+      priority: 'max',
+      vibrate: [0, 500, 500, 500], 
+    },
+    trigger: {
+      seconds: durationInSeconds, 
+      repeats: false, 
+      type: 'timeInterval', // explicitly specify the type
+    } as Notifications.TimeIntervalTriggerInput, // type assertion to fix TypeScript error
+  });
+
+    
+    setTasks([...tasks, { id: Date.now().toString(), duration: taskDuration, text: task, completed: false }]);
     setTask('');
-    setTaskDuration('');
+    setTaskDuration(null);
   };
 
-  const updateTaskDuration = (id: string, duration: string) => {
+  const updateTaskDuration = (id: string, duration: number) => {
     setTasks(tasks.map(task => task.id === id ? { ...task, duration } : task));
   };
 
@@ -29,6 +68,7 @@ export default function App() {
 
   const deleteTask = (id: string) => {
     setTasks(tasks.filter(task => task.id !== id));
+    
   };
 
   return (
@@ -43,9 +83,9 @@ export default function App() {
 
       <TextInput
         style={styles.input}
-        placeholder="Enter a duration"
-        value={taskDuration}
-        onChangeText={setTaskDuration}
+        placeholder="Enter a duration in minutes"
+        value={taskDuration !== null ? taskDuration.toString() : ''}
+        onChangeText={(text) => setTaskDuration(text ? parseInt(text, 10) : null)}
         />
 
       <Button title="Add Task" onPress={addTask}/>
@@ -57,8 +97,9 @@ export default function App() {
           <View style={styles.taskContainer}>
             <TouchableOpacity onPress={() => toggleComplete(item.id)}>
               
-              <Text style={styles.taskText}>{item.text} - {item.duration || 'No time set'}</Text>
-
+              <Text style={styles.taskText}>{item.text} - {item.duration > 0 ? `${item.duration} min` : 'Time’s up!'}
+              </Text>
+              
             </TouchableOpacity>
             <Button title="Edit Time" onPress={() =>  { setEditingTaskId(item.id); setShowModal(true); }} />
             <Button title="Done" onPress={() => deleteTask(item.id)} color="red" />
@@ -71,10 +112,10 @@ export default function App() {
       <View style={styles.modalContent}>
         <Text style={styles.modalTitle}>Select Duration</Text>
         
-        {['30 mins', '1 hour', '2 hours'].map((time) => (
+        {['15','30', '45', '60','120'].map((time) => (
           <TouchableOpacity key={time} onPress={() => {{ 
             if (editingTaskId) {
-              updateTaskDuration(editingTaskId, time);
+              updateTaskDuration(editingTaskId, parseInt(time, 10));
             }
             setShowModal(false); 
           }}}>
